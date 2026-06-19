@@ -22,6 +22,7 @@ class ItemRequest extends FormRequest
             'name' => 'required|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'shelf_id' => 'nullable|exists:shelves,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'unit' => 'required|string|max:50',
             'quantity' => 'required|integer|min:0',
             'min_quantity' => 'required|integer|min:0',

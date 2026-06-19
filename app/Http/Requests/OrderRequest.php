@@ -15,6 +15,7 @@ class OrderRequest extends FormRequest
     {
         return [
             'notes' => 'nullable|string',
+            'warehouse_id' => 'required|exists:warehouses,id',
             'items' => 'required|array|min:1',
             'items.*.item_id' => 'required|exists:items,id',
             'items.*.quantity' => 'required|integer|min:1',

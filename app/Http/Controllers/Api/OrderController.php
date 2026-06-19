@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\StockMovement;
+use App\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class OrderController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $orders = Order::with(['user', 'storekeeper', 'items.item'])
+        $orders = Order::with(['user', 'storekeeper', 'items.item', 'warehouse'])
             ->when($request->search, function ($q, $v) {
                 $q->where('order_number', 'like', "%$v%");
             })
@@ -26,8 +27,15 @@ class OrderController extends Controller
             ->when($request->user_id, function ($q, $v) {
                 $q->where('user_id', $v);
             })
+            ->when($request->warehouse_id, function ($q, $v) {
+                $q->where('warehouse_id', $v);
+            })
             ->when(!$request->user()->isAdmin() && !$request->user()->isStorekeeper(), function ($q) use ($request) {
                 $q->where('user_id', $request->user()->id);
+            })
+            ->when($request->user()->isStorekeeper(), function ($q) use ($request) {
+                $warehouseIds = $request->user()->warehouses()->pluck('warehouses.id');
+                $q->whereIn('warehouse_id', $warehouseIds);
             })
             ->latest()
             ->paginate($request->per_page ?? 10);
@@ -40,17 +48,22 @@ class OrderController extends Controller
         $data = $request->validated();
 
         return DB::transaction(function () use ($request, $data) {
+            $warehouse = Warehouse::findOrFail($data['warehouse_id']);
+
             $orderNumber = 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
 
             $order = Order::create([
                 'order_number' => $orderNumber,
                 'user_id' => $request->user()->id,
+                'warehouse_id' => $warehouse->id,
                 'notes' => $data['notes'] ?? null,
                 'status' => 'pending',
             ]);
 
             foreach ($data['items'] as $itemData) {
-                $item = Item::findOrFail($itemData['item_id']);
+                $item = Item::where('id', $itemData['item_id'])
+                    ->where('warehouse_id', $warehouse->id)
+                    ->firstOrFail();
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -61,7 +74,7 @@ class OrderController extends Controller
             }
 
             return response()->json(
-                $order->load(['user', 'items.item']),
+                $order->load(['user', 'items.item', 'warehouse']),
                 201
             );
         });
@@ -69,7 +82,7 @@ class OrderController extends Controller
 
     public function show(Order $order): JsonResponse
     {
-        return response()->json($order->load(['user', 'storekeeper', 'items.item']));
+        return response()->json($order->load(['user', 'storekeeper', 'receiver', 'items.item', 'warehouse']));
     }
 
     public function approve(Order $order): JsonResponse
@@ -78,20 +91,74 @@ class OrderController extends Controller
             return response()->json(['message' => 'يمكن الموافقة على الطلبات المعلقة فقط.'], 400);
         }
 
-        return DB::transaction(function () use ($order) {
-            $order->update([
-                'status' => 'approved',
-                'storekeeper_id' => request()->user()->id,
-            ]);
+        $user = request()->user();
 
+        $isAssigned = $user->warehouses()->where('warehouse_id', $order->warehouse_id)->exists();
+        if (!$user->isAdmin() && !$isAssigned) {
+            return response()->json(['message' => 'ليس لديك صلاحية للموافقة على هذا الطلب.'], 403);
+        }
+
+        return DB::transaction(function () use ($order, $user) {
             foreach ($order->items as $orderItem) {
                 $item = $orderItem->item;
                 if ($item->quantity < $orderItem->quantity) {
-                    throw new \Exception('الكمية غير كافية للصنف: ' . $item->name);
+                    return response()->json([
+                        'message' => 'الكمية غير كافية للصنف: ' . $item->name,
+                    ], 400);
                 }
             }
 
-            return response()->json($order->load(['user', 'storekeeper', 'items.item']));
+            $order->update([
+                'status' => 'approved',
+                'storekeeper_id' => $user->id,
+            ]);
+
+            return response()->json($order->load(['user', 'storekeeper', 'items.item', 'warehouse']));
+        });
+    }
+
+    public function receive(Order $order): JsonResponse
+    {
+        if ($order->status !== 'approved') {
+            return response()->json(['message' => 'يمكن استلام الطلبات المعتمدة فقط.'], 400);
+        }
+
+        $user = request()->user();
+
+        if ($order->user_id !== $user->id) {
+            return response()->json(['message' => 'يمكن لمقدم الطلب فقط استلامه.'], 403);
+        }
+
+        return DB::transaction(function () use ($order, $user) {
+            foreach ($order->items as $orderItem) {
+                $item = $orderItem->item;
+                if ($item->quantity < $orderItem->quantity) {
+                    return response()->json([
+                        'message' => 'الكمية غير كافية للصنف: ' . $item->name,
+                    ], 400);
+                }
+
+                $item->decrement('quantity', $orderItem->quantity);
+
+                StockMovement::create([
+                    'item_id' => $orderItem->item_id,
+                    'user_id' => $user->id,
+                    'type' => 'out',
+                    'quantity' => $orderItem->quantity,
+                    'price' => $orderItem->price,
+                    'reference_type' => 'order',
+                    'reference_id' => $order->id,
+                    'notes' => 'صرف طلبية رقم: ' . $order->order_number,
+                ]);
+            }
+
+            $order->update([
+                'status' => 'completed',
+                'received_at' => now(),
+                'received_by' => $user->id,
+            ]);
+
+            return response()->json($order->load(['user', 'storekeeper', 'receiver', 'items.item', 'warehouse']));
         });
     }
 
@@ -111,7 +178,7 @@ class OrderController extends Controller
             'rejection_reason' => $validated['rejection_reason'],
         ]);
 
-        return response()->json($order->load(['user', 'storekeeper', 'items.item']));
+        return response()->json($order->load(['user', 'storekeeper', 'items.item', 'warehouse']));
     }
 
     public function complete(Order $order): JsonResponse
@@ -145,7 +212,7 @@ class OrderController extends Controller
 
             $order->update(['status' => 'completed']);
 
-            return response()->json($order->load(['user', 'storekeeper', 'items.item']));
+            return response()->json($order->load(['user', 'storekeeper', 'items.item', 'warehouse']));
         });
     }
 

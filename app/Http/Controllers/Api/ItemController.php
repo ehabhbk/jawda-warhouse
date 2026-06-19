@@ -13,7 +13,7 @@ class ItemController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $items = Item::with(['category', 'shelf'])
+        $items = Item::with(['category', 'shelf', 'warehouse'])
             ->when($request->search, function ($q, $v) {
                 $q->where('name', 'like', "%$v%")
                   ->orWhere('code', 'like', "%$v%")
@@ -24,6 +24,9 @@ class ItemController extends Controller
             })
             ->when($request->shelf_id, function ($q, $v) {
                 $q->where('shelf_id', $v);
+            })
+            ->when($request->warehouse_id, function ($q, $v) {
+                $q->where('warehouse_id', $v);
             })
             ->when($request->low_stock, function ($q) {
                 $q->whereColumn('quantity', '<=', 'min_quantity');
@@ -36,7 +39,7 @@ class ItemController extends Controller
 
     public function all(): JsonResponse
     {
-        return response()->json(Item::where('is_active', true)->with(['category', 'shelf'])->get());
+        return response()->json(Item::where('is_active', true)->with(['category', 'shelf', 'warehouse'])->get());
     }
 
     public function store(ItemRequest $request): JsonResponse

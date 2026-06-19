@@ -15,10 +15,12 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'full_name',
         'username',
         'email',
         'password',
         'role',
+        'role_id',
         'phone',
         'avatar',
         'is_active',
@@ -71,5 +73,30 @@ class User extends Authenticatable
     public function stockMovements()
     {
         return $this->hasMany(StockMovement::class);
+    }
+
+    public function warehouses()
+    {
+        return $this->belongsToMany(Warehouse::class, 'user_warehouses');
+    }
+
+    public function roleRelation()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function permissions()
+    {
+        return $this->hasManyThrough(Permission::class, Role::class, 'id', 'id', 'role_id', 'id')
+            ->join('role_permission', 'permissions.id', '=', 'role_permission.permission_id')
+            ->whereColumn('role_permission.role_id', 'roles.id');
+    }
+
+    public function getPermissionNamesAttribute(): array
+    {
+        if ($this->isAdmin()) {
+            return Permission::pluck('name')->toArray();
+        }
+        return $this->roleRelation?->permissions?->pluck('name')->toArray() ?? [];
     }
 }

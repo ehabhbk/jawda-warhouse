@@ -13,6 +13,9 @@ class Order extends Model
         'notes',
         'rejection_reason',
         'status',
+        'warehouse_id',
+        'received_at',
+        'received_by',
     ];
 
     public function user()
@@ -28,5 +31,15 @@ class Order extends Model
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function receiver()
+    {
+        return $this->belongsTo(User::class, 'received_by');
     }
 }

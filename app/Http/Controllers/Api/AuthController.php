@@ -28,6 +28,9 @@ class AuthController extends Controller
 
         $token = $user->createToken('api-token')->plainTextToken;
 
+        $user->load('warehouses', 'roleRelation.permissions');
+        $user->append('permission_names');
+
         return response()->json([
             'user' => $user,
             'token' => $token,
@@ -43,6 +46,9 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user());
+        $user = $request->user()->load('warehouses', 'roleRelation.permissions');
+        $user->append('permission_names');
+
+        return response()->json($user);
     }
 }

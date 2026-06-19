@@ -55,21 +55,53 @@ class PurchaseController extends Controller
 
             $purchase = Purchase::create($data);
 
-            foreach ($items as $itemData) {
-                PurchaseItem::create([
+            foreach ($items as $i => $itemData) {
+                $itemId = $itemData['item_id'] ?? null;
+                $itemName = $itemData['item_name'] ?? null;
+                $warehouseId = $itemData['warehouse_id'] ?? null;
+
+                if (!$itemId && $itemName) {
+                    $code = 'ITM-' . strtoupper(substr(md5(uniqid()), 0, 8));
+                    $item = Item::create([
+                        'code' => $code,
+                        'name' => $itemName,
+                        'quantity' => 0,
+                        'purchase_price' => $itemData['unit_price'],
+                        'warehouse_id' => $warehouseId,
+                    ]);
+                    $itemId = $item->id;
+                } else {
+                    $item = Item::findOrFail($itemId);
+                    if ($warehouseId) {
+                        $item->warehouse_id = $warehouseId;
+                    }
+                }
+
+                $itemImage = null;
+                if ($request->hasFile("items.$i.image")) {
+                    $itemImage = $request->file("items.$i.image")->store('items', 'public');
+                    $item->image = $itemImage;
+                }
+
+                $item->increment('quantity', $itemData['quantity']);
+                $item->purchase_price = $itemData['unit_price'];
+                $item->save();
+
+                $piData = [
                     'purchase_id' => $purchase->id,
-                    'item_id' => $itemData['item_id'],
+                    'item_id' => $itemId,
+                    'item_name' => $itemName,
                     'quantity' => $itemData['quantity'],
                     'unit_price' => $itemData['unit_price'],
                     'total_price' => $itemData['total_price'],
-                ]);
-
-                $item = Item::findOrFail($itemData['item_id']);
-                $item->increment('quantity', $itemData['quantity']);
-                $item->update(['purchase_price' => $itemData['unit_price']]);
+                    'expiry_date' => $itemData['expiry_date'] ?? null,
+                    'warehouse_id' => $warehouseId,
+                    'image' => $itemImage,
+                ];
+                PurchaseItem::create($piData);
 
                 StockMovement::create([
-                    'item_id' => $itemData['item_id'],
+                    'item_id' => $itemId,
                     'user_id' => $request->user()->id,
                     'type' => 'in',
                     'quantity' => $itemData['quantity'],
@@ -81,7 +113,7 @@ class PurchaseController extends Controller
             }
 
             return response()->json(
-                $purchase->load(['supplier', 'user', 'items.item']),
+                $purchase->load(['supplier', 'user', 'items.item', 'items.warehouse']),
                 201
             );
         });

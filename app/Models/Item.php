@@ -12,6 +12,7 @@ class Item extends Model
         'name',
         'category_id',
         'shelf_id',
+        'warehouse_id',
         'unit',
         'quantity',
         'min_quantity',
@@ -41,6 +42,11 @@ class Item extends Model
     public function shelf()
     {
         return $this->belongsTo(Shelf::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function purchaseItems()

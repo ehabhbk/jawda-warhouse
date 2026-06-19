@@ -25,10 +25,14 @@ class PurchaseRequest extends FormRequest
             'status' => 'required|in:pending,completed,cancelled',
             'purchase_date' => 'required|date',
             'items' => 'required|array|min:1',
-            'items.*.item_id' => 'required|exists:items,id',
+            'items.*.item_id' => 'nullable|exists:items,id',
+            'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.total_price' => 'required|numeric|min:0',
+            'items.*.expiry_date' => 'nullable|date',
+            'items.*.warehouse_id' => 'nullable|exists:warehouses,id',
+            'items.*.image' => 'nullable|file|image|max:5120',
         ];
     }
 }

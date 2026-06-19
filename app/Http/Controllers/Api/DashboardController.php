@@ -20,13 +20,14 @@ class DashboardController extends Controller
             'total_items' => Item::count(),
             'total_categories' => \App\Models\Category::count(),
             'total_shelves' => \App\Models\Shelf::count(),
+            'total_warehouses' => \App\Models\Warehouse::count(),
             'total_suppliers' => \App\Models\Supplier::count(),
             'total_users' => User::count(),
             'total_orders' => Order::count(),
             'pending_orders' => Order::where('status', 'pending')->count(),
             'total_purchases' => Purchase::count(),
             'low_stock_items' => Item::whereColumn('quantity', '<=', 'min_quantity')->count(),
-            'recent_movements' => StockMovement::with(['item', 'user'])
+            'recent_movements' => StockMovement::with(['item.warehouse', 'user'])
                 ->latest()->limit(10)->get(),
         ]);
     }
