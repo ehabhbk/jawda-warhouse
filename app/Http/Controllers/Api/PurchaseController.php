@@ -19,7 +19,10 @@ class PurchaseController extends Controller
     {
         $purchases = Purchase::with(['supplier', 'user', 'items.item'])
             ->when($request->search, function ($q, $v) {
-                $q->where('invoice_number', 'like', "%$v%");
+                $q->where('invoice_number', 'like', "%$v%")
+                  ->orWhereHas('supplier', function ($sq) use ($v) {
+                      $sq->where('name', 'like', "%$v%");
+                  });
             })
             ->when($request->supplier_id, function ($q, $v) {
                 $q->where('supplier_id', $v);
@@ -59,6 +62,7 @@ class PurchaseController extends Controller
                 $itemId = $itemData['item_id'] ?? null;
                 $itemName = $itemData['item_name'] ?? null;
                 $warehouseId = $itemData['warehouse_id'] ?? null;
+                $unitPrice = $itemData['unit_price'] ?? ($itemData['quantity'] > 0 ? $itemData['total_price'] / $itemData['quantity'] : 0);
 
                 if (!$itemId && $itemName) {
                     $code = 'ITM-' . strtoupper(substr(md5(uniqid()), 0, 8));
@@ -66,14 +70,23 @@ class PurchaseController extends Controller
                         'code' => $code,
                         'name' => $itemName,
                         'quantity' => 0,
-                        'purchase_price' => $itemData['unit_price'],
+                        'purchase_price' => $unitPrice,
+                        'sale_price' => $unitPrice,
                         'warehouse_id' => $warehouseId,
+                        'category_id' => $itemData['category_id'] ?? null,
+                        'unit' => $itemData['unit'] ?? 'piece',
                     ]);
                     $itemId = $item->id;
                 } else {
                     $item = Item::findOrFail($itemId);
                     if ($warehouseId) {
                         $item->warehouse_id = $warehouseId;
+                    }
+                    if (isset($itemData['category_id'])) {
+                        $item->category_id = $itemData['category_id'];
+                    }
+                    if (isset($itemData['unit'])) {
+                        $item->unit = $itemData['unit'];
                     }
                 }
 
@@ -84,7 +97,7 @@ class PurchaseController extends Controller
                 }
 
                 $item->increment('quantity', $itemData['quantity']);
-                $item->purchase_price = $itemData['unit_price'];
+                $item->purchase_price = $unitPrice;
                 $item->save();
 
                 $piData = [
@@ -92,7 +105,7 @@ class PurchaseController extends Controller
                     'item_id' => $itemId,
                     'item_name' => $itemName,
                     'quantity' => $itemData['quantity'],
-                    'unit_price' => $itemData['unit_price'],
+                    'unit_price' => $unitPrice,
                     'total_price' => $itemData['total_price'],
                     'expiry_date' => $itemData['expiry_date'] ?? null,
                     'warehouse_id' => $warehouseId,
@@ -105,7 +118,7 @@ class PurchaseController extends Controller
                     'user_id' => $request->user()->id,
                     'type' => 'in',
                     'quantity' => $itemData['quantity'],
-                    'price' => $itemData['unit_price'],
+                    'price' => $unitPrice,
                     'reference_type' => 'purchase',
                     'reference_id' => $purchase->id,
                     'notes' => 'مشتريات - فاتورة رقم: ' . $purchase->invoice_number,
@@ -121,7 +134,7 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase): JsonResponse
     {
-        return response()->json($purchase->load(['supplier', 'user', 'items.item']));
+        return response()->json($purchase->load(['supplier', 'user', 'items.item', 'items.warehouse']));
     }
 
     public function update(Request $request, Purchase $purchase): JsonResponse

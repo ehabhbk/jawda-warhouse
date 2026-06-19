@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RoleController;
@@ -50,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('orders', OrderController::class)->except(['create', 'edit']);
 
     Route::get('/warehouses/all', [WarehouseController::class, 'all']);
+    Route::get('/warehouses/{warehouse}/items', [WarehouseController::class, 'items']);
     Route::apiResource('warehouses', WarehouseController::class)->except(['create', 'edit']);
 
     Route::get('/stock-movements', [StockMovementController::class, 'index']);
@@ -64,6 +66,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/permissions/all', [PermissionController::class, 'all']);
     Route::apiResource('permissions', PermissionController::class)->except(['create', 'edit']);
+
+    Route::get('/pos-sales/today-summary', [PosController::class, 'todaySummary']);
+    Route::put('/pos-sales/{posSale}/cancel', [PosController::class, 'cancel']);
+    Route::apiResource('pos-sales', PosController::class)->except(['create', 'edit', 'update']);
 
     Route::prefix('reports')->group(function () {
         Route::get('/summary', [ReportController::class, 'summary']);

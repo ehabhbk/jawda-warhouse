@@ -28,10 +28,12 @@ class PurchaseRequest extends FormRequest
             'items.*.item_id' => 'nullable|exists:items,id',
             'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.total_price' => 'required|numeric|min:0',
             'items.*.expiry_date' => 'nullable|date',
             'items.*.warehouse_id' => 'nullable|exists:warehouses,id',
+            'items.*.category_id' => 'nullable|exists:categories,id',
+            'items.*.unit' => 'nullable|string|max:50',
             'items.*.image' => 'nullable|file|image|max:5120',
         ];
     }

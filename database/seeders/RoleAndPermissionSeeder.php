@@ -62,6 +62,11 @@ class RoleAndPermissionSeeder extends Seeder
 
             ['name' => 'view-reports', 'label' => 'عرض التقارير', 'group' => 'التقارير'],
             ['name' => 'view-stock-movements', 'label' => 'عرض حركة المخزن', 'group' => 'التقارير'],
+
+            ['name' => 'view-pos', 'label' => 'عرض نقطة البيع', 'group' => 'نقطة البيع'],
+            ['name' => 'create-pos-sales', 'label' => 'إجراء عملية بيع', 'group' => 'نقطة البيع'],
+            ['name' => 'view-pos-sales', 'label' => 'عرض عمليات البيع', 'group' => 'نقطة البيع'],
+            ['name' => 'cancel-pos-sales', 'label' => 'إلغاء عملية بيع', 'group' => 'نقطة البيع'],
         ];
 
         foreach ($permissions as $p) {
@@ -80,6 +85,7 @@ class RoleAndPermissionSeeder extends Seeder
                 'view-suppliers', 'create-suppliers', 'edit-suppliers',
                 'view-stock-movements',
                 'view-reports',
+                'view-pos', 'create-pos-sales', 'view-pos-sales', 'cancel-pos-sales',
             ]],
             'user' => ['label' => 'مستخدم', 'description' => 'طلب الأصناف وعرضها', 'permissions' => [
                 'view-items',

@@ -28,6 +28,9 @@ class ItemController extends Controller
             ->when($request->warehouse_id, function ($q, $v) {
                 $q->where('warehouse_id', $v);
             })
+            ->when($request->has('is_active'), function ($q) use ($request) {
+                $q->where('is_active', $request->boolean('is_active'));
+            })
             ->when($request->low_stock, function ($q) {
                 $q->whereColumn('quantity', '<=', 'min_quantity');
             })

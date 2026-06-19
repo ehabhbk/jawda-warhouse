@@ -4,18 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PurchaseItem extends Model
+class PosSaleItem extends Model
 {
     protected $fillable = [
-        'purchase_id',
+        'pos_sale_id',
         'item_id',
         'item_name',
         'quantity',
         'unit_price',
         'total_price',
-        'expiry_date',
-        'warehouse_id',
-        'image',
     ];
 
     protected function casts(): array
@@ -24,27 +21,16 @@ class PurchaseItem extends Model
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
-            'expiry_date' => 'date',
         ];
     }
 
-    public function purchase()
+    public function posSale()
     {
-        return $this->belongsTo(Purchase::class);
+        return $this->belongsTo(PosSale::class);
     }
 
     public function item()
     {
         return $this->belongsTo(Item::class);
-    }
-
-    public function warehouse()
-    {
-        return $this->belongsTo(Warehouse::class);
-    }
-
-    public function getImageUrlAttribute()
-    {
-        return $this->image ? asset('storage/' . $this->image) : null;
     }
 }

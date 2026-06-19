@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Item;
 use App\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class WarehouseController extends Controller
 {
@@ -40,6 +42,28 @@ class WarehouseController extends Controller
     public function show(Warehouse $warehouse): JsonResponse
     {
         return response()->json($warehouse->load('items'));
+    }
+
+    public function items(Warehouse $warehouse): JsonResponse
+    {
+        $items = Item::where('warehouse_id', $warehouse->id)
+            ->with(['category', 'shelf'])
+            ->with(['purchaseItems' => function ($q) {
+                $q->whereNotNull('expiry_date')->orderBy('expiry_date');
+            }])
+            ->get();
+
+        $items->each(function ($item) {
+            $item->earliest_expiry = $item->purchaseItems->first()?->expiry_date;
+            unset($item->purchaseItems);
+        });
+
+        return response()->json([
+            'warehouse' => $warehouse,
+            'items' => $items,
+            'items_count' => $items->count(),
+            'total_quantity' => $items->sum('quantity'),
+        ]);
     }
 
     public function update(Request $request, Warehouse $warehouse): JsonResponse
