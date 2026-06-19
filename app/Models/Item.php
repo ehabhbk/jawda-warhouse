@@ -23,6 +23,8 @@ class Item extends Model
         'is_active',
     ];
 
+    protected $appends = ['image_url'];
+
     protected function casts(): array
     {
         return [

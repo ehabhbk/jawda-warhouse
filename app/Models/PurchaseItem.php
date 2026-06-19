@@ -18,6 +18,8 @@ class PurchaseItem extends Model
         'image',
     ];
 
+    protected $appends = ['image_url'];
+
     protected function casts(): array
     {
         return [

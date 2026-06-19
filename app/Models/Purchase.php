@@ -20,6 +20,8 @@ class Purchase extends Model
         'purchase_date',
     ];
 
+    protected $appends = ['invoice_file_url'];
+
     protected function casts(): array
     {
         return [
