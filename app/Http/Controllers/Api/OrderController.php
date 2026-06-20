@@ -117,7 +117,7 @@ class OrderController extends Controller
         });
     }
 
-    public function receive(Order $order): JsonResponse
+    public function receive(Request $request, Order $order): JsonResponse
     {
         if ($order->status !== 'approved') {
             return response()->json(['message' => 'يمكن استلام الطلبات المعتمدة فقط.'], 400);
@@ -129,34 +129,60 @@ class OrderController extends Controller
             return response()->json(['message' => 'يمكن لمقدم الطلب فقط استلامه.'], 403);
         }
 
-        return DB::transaction(function () use ($order, $user) {
+        $fulfillItems = $request->input('items'); // [{item_id, quantity}]
+
+        return DB::transaction(function () use ($order, $user, $fulfillItems) {
+            $allFulfilled = true;
+
             foreach ($order->items as $orderItem) {
+                $fulfillQty = 0;
+                if ($fulfillItems && is_array($fulfillItems)) {
+                    $match = collect($fulfillItems)->firstWhere('item_id', $orderItem->item_id);
+                    $fulfillQty = $match ? (int)$match['quantity'] : 0;
+                } else {
+                    $fulfillQty = $orderItem->remaining_quantity;
+                }
+
+                if ($fulfillQty <= 0) {
+                    if ($orderItem->remaining_quantity > 0) $allFulfilled = false;
+                    continue;
+                }
+
                 $item = $orderItem->item;
-                if ($item->quantity < $orderItem->quantity) {
+                if ($item->quantity < $fulfillQty) {
                     return response()->json([
                         'message' => 'الكمية غير كافية للصنف: ' . $item->name,
                     ], 400);
                 }
 
-                $item->decrement('quantity', $orderItem->quantity);
+                $item->decrement('quantity', $fulfillQty);
 
                 StockMovement::create([
                     'item_id' => $orderItem->item_id,
                     'user_id' => $user->id,
                     'type' => 'out',
-                    'quantity' => $orderItem->quantity,
+                    'quantity' => $fulfillQty,
                     'price' => $orderItem->price,
                     'reference_type' => 'order',
                     'reference_id' => $order->id,
                     'notes' => 'صرف طلبية رقم: ' . $order->order_number,
                 ]);
+
+                $orderItem->increment('fulfilled_quantity', $fulfillQty);
+
+                if ($orderItem->remaining_quantity > 0) $allFulfilled = false;
             }
 
-            $order->update([
-                'status' => 'completed',
+            $updateData = [
                 'received_at' => now(),
                 'received_by' => $user->id,
-            ]);
+            ];
+
+            if ($allFulfilled) {
+                $updateData['status'] = 'completed';
+            }
+
+            $order->update($updateData);
 
             return response()->json($order->load(['user', 'storekeeper', 'receiver', 'items.item', 'warehouse']));
         });
@@ -181,36 +207,62 @@ class OrderController extends Controller
         return response()->json($order->load(['user', 'storekeeper', 'items.item', 'warehouse']));
     }
 
-    public function complete(Order $order): JsonResponse
+    public function complete(Request $request, Order $order): JsonResponse
     {
         if ($order->status !== 'approved') {
             return response()->json(['message' => 'يمكن إكمال الطلبات المعتمدة فقط.'], 400);
         }
 
-        return DB::transaction(function () use ($order) {
+        $fulfillItems = $request->input('items');
+
+        return DB::transaction(function () use ($order, $request, $fulfillItems) {
+            $allFulfilled = true;
+
             foreach ($order->items as $orderItem) {
+                $fulfillQty = 0;
+                if ($fulfillItems && is_array($fulfillItems)) {
+                    $match = collect($fulfillItems)->firstWhere('item_id', $orderItem->item_id);
+                    $fulfillQty = $match ? (int)$match['quantity'] : 0;
+                } else {
+                    $fulfillQty = $orderItem->remaining_quantity;
+                }
+
+                if ($fulfillQty <= 0) {
+                    if ($orderItem->remaining_quantity > 0) $allFulfilled = false;
+                    continue;
+                }
+
                 $item = $orderItem->item;
-                if ($item->quantity < $orderItem->quantity) {
+                if ($item->quantity < $fulfillQty) {
                     return response()->json([
                         'message' => 'الكمية غير كافية للصنف: ' . $item->name,
                     ], 400);
                 }
 
-                $item->decrement('quantity', $orderItem->quantity);
+                $item->decrement('quantity', $fulfillQty);
 
                 StockMovement::create([
                     'item_id' => $orderItem->item_id,
-                    'user_id' => request()->user()->id,
+                    'user_id' => $request->user()->id,
                     'type' => 'out',
-                    'quantity' => $orderItem->quantity,
+                    'quantity' => $fulfillQty,
                     'price' => $orderItem->price,
                     'reference_type' => 'order',
                     'reference_id' => $order->id,
                     'notes' => 'صرف طلبية رقم: ' . $order->order_number,
                 ]);
+
+                $orderItem->increment('fulfilled_quantity', $fulfillQty);
+
+                if ($orderItem->remaining_quantity > 0) $allFulfilled = false;
             }
 
-            $order->update(['status' => 'completed']);
+            $updateData = [];
+            if ($allFulfilled) {
+                $updateData['status'] = 'completed';
+            }
+
+            $order->update($updateData);
 
             return response()->json($order->load(['user', 'storekeeper', 'items.item', 'warehouse']));
         });

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Shelf extends Model
 {
     protected $fillable = [
+        'warehouse_id',
         'code',
         'name',
         'location',
@@ -24,5 +25,10 @@ class Shelf extends Model
     public function items()
     {
         return $this->hasMany(Item::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 }

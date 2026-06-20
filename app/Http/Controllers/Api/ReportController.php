@@ -10,9 +10,11 @@ use App\Models\Purchase;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Models\PosSale;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Mpdf\Mpdf;
 
 class ReportController extends Controller
 {
@@ -119,5 +121,86 @@ class ReportController extends Controller
         };
 
         return response()->json($data);
+    }
+
+    public function pdf(Request $request)
+    {
+        $from = $request->from ? Carbon::parse($request->from)->startOfDay() : now()->startOfMonth();
+        $to = $request->to ? Carbon::parse($request->to)->endOfDay() : now()->endOfDay();
+
+        $purchases = Purchase::with('supplier')
+            ->withCount('items')
+            ->whereBetween('purchase_date', [$from, $to])
+            ->orderBy('purchase_date')
+            ->get();
+
+        $orders = Order::with(['user', 'warehouse'])
+            ->withCount('items')
+            ->whereBetween('created_at', [$from, $to])
+            ->orderBy('created_at')
+            ->get();
+
+        $sales = PosSale::with('user')
+            ->withCount('items')
+            ->whereBetween('created_at', [$from, $to])
+            ->where('status', 'completed')
+            ->orderBy('created_at')
+            ->get();
+
+        $warehouses = Warehouse::withCount('items')->get()->map(function ($w) {
+            $items = Item::where('warehouse_id', $w->id)->get();
+            return [
+                'name' => $w->name,
+                'code' => $w->code,
+                'items_count' => $w->items_count,
+                'total_quantity' => $items->sum('quantity'),
+                'total_value' => $items->sum(fn($i) => $i->quantity * $i->purchase_price),
+                'low_stock_count' => $items->filter(fn($i) => $i->quantity <= $i->min_quantity)->count(),
+            ];
+        });
+
+        $movements = \App\Models\StockMovement::with(['item', 'user'])
+            ->whereBetween('created_at', [$from, $to])
+            ->latest()
+            ->limit(50)
+            ->get();
+
+        $data = [
+            'fromDate' => $from->format('Y-m-d'),
+            'toDate' => $to->format('Y-m-d'),
+            'totalItems' => Item::count(),
+            'totalWarehouses' => Warehouse::count(),
+            'totalPurchases' => $purchases->count(),
+            'totalOrders' => $orders->count(),
+            'totalSales' => $sales->count(),
+            'totalSuppliers' => \App\Models\Supplier::count(),
+            'lowStockItems' => Item::whereRaw('quantity <= min_quantity')->count(),
+            'expiredItems' => Item::whereNotNull('expiry_date')->where('expiry_date', '<', now())->count(),
+            'totalPurchaseAmount' => $purchases->sum('grand_total'),
+            'totalSaleAmount' => $sales->sum('grand_total'),
+            'purchases' => $purchases,
+            'orders' => $orders,
+            'sales' => $sales,
+            'inventory' => $warehouses,
+            'movements' => $movements,
+        ];
+
+        $html = view('reports.pdf', $data)->render();
+
+        $mpdf = new Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'default_font' => 'dejavusans',
+            'directionality' => 'rtl',
+            'autoArabic' => true,
+        ]);
+        $mpdf->autoScriptToLang = true;
+        $mpdf->autoLangToFont = true;
+        $mpdf->WriteHTML($html);
+
+        $filename = 'تقرير_مخازن_' . now()->format('Ymd_His') . '.pdf';
+        return response($mpdf->Output($filename, 'S'), 200)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     }
 }

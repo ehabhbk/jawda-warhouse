@@ -13,6 +13,8 @@ class ShelfController extends Controller
     {
         $shelves = Shelf::when($request->search, function ($q, $v) {
             $q->where('name', 'like', "%$v%")->orWhere('code', 'like', "%$v%");
+        })->when($request->warehouse_id, function ($q, $v) {
+            $q->where('warehouse_id', $v);
         })->latest()->paginate($request->per_page ?? 10);
 
         return response()->json($shelves);
@@ -20,12 +22,13 @@ class ShelfController extends Controller
 
     public function all(): JsonResponse
     {
-        return response()->json(Shelf::where('is_active', true)->get());
+        return response()->json(Shelf::where('is_active', true)->when(request('warehouse_id'), fn ($q, $v) => $q->where('warehouse_id', $v))->get());
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
             'code' => 'required|string|max:50|unique:shelves,code',
             'name' => 'required|string|max:255',
             'location' => 'nullable|string|max:255',
@@ -45,6 +48,7 @@ class ShelfController extends Controller
     public function update(Request $request, Shelf $shelf): JsonResponse
     {
         $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
             'code' => 'required|string|max:50|unique:shelves,code,' . $shelf->id,
             'name' => 'required|string|max:255',
             'location' => 'nullable|string|max:255',

@@ -20,6 +20,7 @@ class Item extends Model
         'sale_price',
         'image',
         'description',
+        'expiry_date',
         'is_active',
     ];
 
@@ -33,6 +34,7 @@ class Item extends Model
             'min_quantity' => 'integer',
             'purchase_price' => 'decimal:2',
             'sale_price' => 'decimal:2',
+            'expiry_date' => 'date',
         ];
     }
 

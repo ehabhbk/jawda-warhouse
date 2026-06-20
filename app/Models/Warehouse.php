@@ -15,6 +15,11 @@ class Warehouse extends Model
         return $this->hasMany(Item::class);
     }
 
+    public function shelves()
+    {
+        return $this->hasMany(Shelf::class);
+    }
+
     public function orders()
     {
         return $this->hasMany(Order::class);

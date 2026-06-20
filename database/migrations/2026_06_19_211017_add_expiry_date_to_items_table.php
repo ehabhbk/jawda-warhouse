@@ -6,23 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('items', function (Blueprint $table) {
-            //
+            $table->date('expiry_date')->nullable()->after('description');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('items', function (Blueprint $table) {
-            //
+            $table->dropColumn('expiry_date');
         });
     }
 };

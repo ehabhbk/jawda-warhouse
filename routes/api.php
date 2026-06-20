@@ -11,10 +11,14 @@ use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\ShelfController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ReportScheduleController;
+use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WarehouseController;
+use App\Http\Controllers\Api\WhatsAppController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -55,6 +59,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('warehouses', WarehouseController::class)->except(['create', 'edit']);
 
     Route::get('/stock-movements', [StockMovementController::class, 'index']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+
+    Route::get('/settings', [SettingController::class, 'index']);
+    Route::put('/settings', [SettingController::class, 'update']);
+
+    Route::apiResource('report-schedules', ReportScheduleController::class)->except(['create', 'edit', 'show']);
+    Route::post('/report-schedules/{reportSchedule}/send-now', [ReportScheduleController::class, 'sendNow']);
+
+    Route::post('/whatsapp/send', [WhatsAppController::class, 'send']);
+    Route::post('/whatsapp/send-purchase-request', [WhatsAppController::class, 'sendPurchaseRequest']);
+    Route::post('/whatsapp/send-report', [WhatsAppController::class, 'sendReport']);
 
     Route::middleware('role:admin')->group(function () {
         Route::get('/users/all', [UserController::class, 'all']);
@@ -78,5 +93,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/purchases-by-period', [ReportController::class, 'purchasesByPeriod']);
         Route::get('/orders-by-status', [ReportController::class, 'ordersByStatus']);
         Route::get('/movements-by-period', [ReportController::class, 'movementsByPeriod']);
+        Route::get('/pdf', [ReportController::class, 'pdf']);
     });
 });
