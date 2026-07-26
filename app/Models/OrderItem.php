@@ -12,6 +12,8 @@ class OrderItem extends Model
         'quantity',
         'price',
         'fulfilled_quantity',
+        'unit_type',
+        'sub_unit_name',
     ];
 
     protected $appends = ['remaining_quantity'];
@@ -22,6 +24,7 @@ class OrderItem extends Model
             'quantity' => 'integer',
             'fulfilled_quantity' => 'integer',
             'price' => 'decimal:2',
+            'unit_type' => 'string',
         ];
     }
 

@@ -101,10 +101,22 @@ class OrderController extends Controller
         return DB::transaction(function () use ($order, $user) {
             foreach ($order->items as $orderItem) {
                 $item = $orderItem->item;
-                if ($item->quantity < $orderItem->quantity) {
-                    return response()->json([
-                        'message' => 'الكمية غير كافية للصنف: ' . $item->name,
-                    ], 400);
+                $unitType = $orderItem->unit_type ?? 'main';
+
+                if ($unitType === 'sub') {
+                    $subUnitQty = $item->sub_unit_quantity ?: 1;
+                    $availableSub = $item->quantity * $subUnitQty;
+                    if ($availableSub < $orderItem->quantity) {
+                        return response()->json([
+                            'message' => 'الكمية غير كافية للصنف: ' . $item->name . '. المتوفر: ' . $availableSub . ' ' . ($item->sub_unit ?: ''),
+                        ], 400);
+                    }
+                } else {
+                    if ($item->quantity < $orderItem->quantity) {
+                        return response()->json([
+                            'message' => 'الكمية غير كافية للصنف: ' . $item->name . '. المتوفر: ' . $item->quantity . ' ' . ($item->unit ?: ''),
+                        ], 400);
+                    }
                 }
             }
 
@@ -129,10 +141,12 @@ class OrderController extends Controller
             return response()->json(['message' => 'يمكن لمقدم الطلب فقط استلامه.'], 403);
         }
 
-        $fulfillItems = $request->input('items'); // [{item_id, quantity}]
+        $fulfillItems = $request->input('items');
 
         return DB::transaction(function () use ($order, $user, $fulfillItems) {
             $allFulfilled = true;
+
+            $departmentId = $user->department_id;
 
             foreach ($order->items as $orderItem) {
                 $fulfillQty = 0;
@@ -149,24 +163,84 @@ class OrderController extends Controller
                 }
 
                 $item = $orderItem->item;
-                if ($item->quantity < $fulfillQty) {
-                    return response()->json([
-                        'message' => 'الكمية غير كافية للصنف: ' . $item->name,
-                    ], 400);
+                $unitType = $orderItem->unit_type ?? 'main';
+
+                if ($unitType === 'sub') {
+                    $subUnitQty = $item->sub_unit_quantity ?: 1;
+                    $mainUnitsToDeduct = round($fulfillQty / $subUnitQty, 2);
+                    if ($mainUnitsToDeduct > $item->quantity) {
+                        $mainUnitsToDeduct = $item->quantity;
+                        $fulfillQty = $mainUnitsToDeduct * $subUnitQty;
+                    }
+                    $item->decrement('quantity', $mainUnitsToDeduct);
+
+                    StockMovement::create([
+                        'item_id' => $orderItem->item_id,
+                        'user_id' => $user->id,
+                        'type' => 'out',
+                        'quantity' => $mainUnitsToDeduct,
+                        'price' => $orderItem->price,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'notes' => "صرف طلبية رقم: {$order->order_number} ( {$fulfillQty} {$item->sub_unit} = {$mainUnitsToDeduct} {$item->unit} )",
+                    ]);
+
+                    if ($departmentId) {
+                        $deptItem = \App\Models\DepartmentItem::where('department_id', $departmentId)
+                            ->where('item_id', $orderItem->item_id)
+                            ->first();
+
+                        if ($deptItem) {
+                            $deptItem->increment('quantity', $fulfillQty);
+                        } else {
+                            \App\Models\DepartmentItem::create([
+                                'department_id' => $departmentId,
+                                'item_id' => $orderItem->item_id,
+                                'quantity' => $fulfillQty,
+                                'sub_unit_quantity' => $subUnitQty,
+                            ]);
+                        }
+                    }
+                } else {
+                    if ($item->quantity < $fulfillQty) {
+                        return response()->json([
+                            'message' => 'الكمية غير كافية للصنف: ' . $item->name,
+                        ], 400);
+                    }
+
+                    $item->decrement('quantity', $fulfillQty);
+
+                    $subQty = $item->sub_unit_quantity ?: 1;
+                    $totalSub = $fulfillQty * $subQty;
+
+                    StockMovement::create([
+                        'item_id' => $orderItem->item_id,
+                        'user_id' => $user->id,
+                        'type' => 'out',
+                        'quantity' => $fulfillQty,
+                        'price' => $orderItem->price,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'notes' => "صرف طلبية رقم: {$order->order_number} ( {$fulfillQty} {$item->unit} )",
+                    ]);
+
+                    if ($departmentId) {
+                        $deptItem = \App\Models\DepartmentItem::where('department_id', $departmentId)
+                            ->where('item_id', $orderItem->item_id)
+                            ->first();
+
+                        if ($deptItem) {
+                            $deptItem->increment('quantity', $totalSub);
+                        } else {
+                            \App\Models\DepartmentItem::create([
+                                'department_id' => $departmentId,
+                                'item_id' => $orderItem->item_id,
+                                'quantity' => $totalSub,
+                                'sub_unit_quantity' => $subQty,
+                            ]);
+                        }
+                    }
                 }
-
-                $item->decrement('quantity', $fulfillQty);
-
-                StockMovement::create([
-                    'item_id' => $orderItem->item_id,
-                    'user_id' => $user->id,
-                    'type' => 'out',
-                    'quantity' => $fulfillQty,
-                    'price' => $orderItem->price,
-                    'reference_type' => 'order',
-                    'reference_id' => $order->id,
-                    'notes' => 'صرف طلبية رقم: ' . $order->order_number,
-                ]);
 
                 $orderItem->increment('fulfilled_quantity', $fulfillQty);
 
@@ -233,24 +307,47 @@ class OrderController extends Controller
                 }
 
                 $item = $orderItem->item;
-                if ($item->quantity < $fulfillQty) {
-                    return response()->json([
-                        'message' => 'الكمية غير كافية للصنف: ' . $item->name,
-                    ], 400);
+                $unitType = $orderItem->unit_type ?? 'main';
+
+                if ($unitType === 'sub') {
+                    $subUnitQty = $item->sub_unit_quantity ?: 1;
+                    $mainUnitsToDeduct = round($fulfillQty / $subUnitQty, 2);
+                    if ($mainUnitsToDeduct > $item->quantity) {
+                        $mainUnitsToDeduct = $item->quantity;
+                        $fulfillQty = round($mainUnitsToDeduct * $subUnitQty, 2);
+                    }
+                    $item->decrement('quantity', $mainUnitsToDeduct);
+
+                    StockMovement::create([
+                        'item_id' => $orderItem->item_id,
+                        'user_id' => $request->user()->id,
+                        'type' => 'out',
+                        'quantity' => $mainUnitsToDeduct,
+                        'price' => $orderItem->price,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'notes' => "صرف طلبية رقم: {$order->order_number} ( {$fulfillQty} {$item->sub_unit} = {$mainUnitsToDeduct} {$item->unit} )",
+                    ]);
+                } else {
+                    if ($item->quantity < $fulfillQty) {
+                        return response()->json([
+                            'message' => 'الكمية غير كافية للصنف: ' . $item->name,
+                        ], 400);
+                    }
+
+                    $item->decrement('quantity', $fulfillQty);
+
+                    StockMovement::create([
+                        'item_id' => $orderItem->item_id,
+                        'user_id' => $request->user()->id,
+                        'type' => 'out',
+                        'quantity' => $fulfillQty,
+                        'price' => $orderItem->price,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'notes' => "صرف طلبية رقم: {$order->order_number} ( {$fulfillQty} {$item->unit} )",
+                    ]);
                 }
-
-                $item->decrement('quantity', $fulfillQty);
-
-                StockMovement::create([
-                    'item_id' => $orderItem->item_id,
-                    'user_id' => $request->user()->id,
-                    'type' => 'out',
-                    'quantity' => $fulfillQty,
-                    'price' => $orderItem->price,
-                    'reference_type' => 'order',
-                    'reference_id' => $order->id,
-                    'notes' => 'صرف طلبية رقم: ' . $order->order_number,
-                ]);
 
                 $orderItem->increment('fulfilled_quantity', $fulfillQty);
 

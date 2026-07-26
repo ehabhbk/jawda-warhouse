@@ -13,12 +13,17 @@ class UserController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $users = User::with('warehouses')
+        $users = User::with(['warehouses', 'department'])
             ->when($request->search, function ($q, $v) {
-                $q->where('name', 'like', "%$v%")->orWhere('email', 'like', "%$v%");
+                $q->where('name', 'like', "%$v%")
+                    ->orWhere('email', 'like', "%$v%")
+                    ->orWhere('full_name', 'like', "%$v%");
             })
             ->when($request->role, function ($q, $v) {
                 $q->where('role', $v);
+            })
+            ->when($request->department_id, function ($q, $v) {
+                $q->where('department_id', $v);
             })
             ->latest()
             ->paginate($request->per_page ?? 10);
@@ -28,7 +33,7 @@ class UserController extends Controller
 
     public function all(): JsonResponse
     {
-        return response()->json(User::where('is_active', true)->get());
+        return response()->json(User::where('is_active', true)->with('department')->get());
     }
 
     public function store(Request $request): JsonResponse
@@ -40,6 +45,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'role' => 'required|in:admin,storekeeper,user',
             'role_id' => 'nullable|exists:roles,id',
+            'department_id' => 'nullable|exists:departments,id',
             'phone' => 'nullable|string|max:20',
             'warehouse_ids' => 'nullable|array',
             'warehouse_ids.*' => 'exists:warehouses,id',
@@ -58,12 +64,12 @@ class UserController extends Controller
             $user->warehouses()->attach($validated['warehouse_ids']);
         }
 
-        return response()->json($user->load('warehouses'), 201);
+        return response()->json($user->load('warehouses', 'department'), 201);
     }
 
     public function show(User $user): JsonResponse
     {
-        return response()->json($user->load('warehouses'));
+        return response()->json($user->load('warehouses', 'department'));
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -75,6 +81,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'role' => 'required|in:admin,storekeeper,user',
             'role_id' => 'nullable|exists:roles,id',
+            'department_id' => 'nullable|exists:departments,id',
             'phone' => 'nullable|string|max:20',
             'is_active' => 'boolean',
             'warehouse_ids' => 'nullable|array',
@@ -98,7 +105,7 @@ class UserController extends Controller
             $user->warehouses()->sync($validated['warehouse_ids']);
         }
 
-        return response()->json($user->load('warehouses'));
+        return response()->json($user->load('warehouses', 'department'));
     }
 
     public function destroy(User $user): JsonResponse

@@ -17,19 +17,23 @@ class ItemRequest extends FormRequest
         $itemId = $this->route('item');
 
         return [
-            'code' => ['required', 'string', 'max:50', Rule::unique('items', 'code')->ignore($itemId)],
+            'code' => ['nullable', 'string', 'max:50', Rule::unique('items', 'code')->ignore($itemId)],
             'barcode' => ['nullable', 'string', 'max:100', Rule::unique('items', 'barcode')->ignore($itemId)],
+            'batch' => ['nullable', 'string', 'max:100'],
             'name' => 'required|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'shelf_id' => 'nullable|exists:shelves,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
-            'unit' => 'required|string|max:50',
+            'unit' => ['nullable', 'string', 'max:50'],
+            'sub_unit' => ['nullable', 'string', 'max:50'],
+            'sub_unit_quantity' => ['nullable', 'integer', 'min:1'],
             'quantity' => 'required|integer|min:0',
-            'min_quantity' => 'required|integer|min:0',
-            'purchase_price' => 'required|numeric|min:0',
-            'sale_price' => 'required|numeric|min:0',
+            'min_quantity' => ['nullable', 'integer', 'min:0'],
+            'purchase_price' => ['nullable', 'numeric', 'min:0'],
+            'sale_price' => ['nullable', 'numeric', 'min:0'],
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'description' => 'nullable|string',
+            'expiry_date' => 'nullable|date',
             'is_active' => 'boolean',
         ];
     }

@@ -49,6 +49,10 @@ class ItemController extends Controller
     {
         $data = $request->validated();
 
+        if (empty($data['code'])) {
+            $data['code'] = 'ITM-' . str_pad(Item::max('id') + 1, 5, '0', STR_PAD_LEFT);
+        }
+
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('items', 'public');
         }

@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\InventoryCountController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PermissionController;
@@ -53,6 +55,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/orders/{order}/receive', [OrderController::class, 'receive']);
     Route::put('/orders/{order}/complete', [OrderController::class, 'complete']);
     Route::apiResource('orders', OrderController::class)->except(['create', 'edit']);
+
+    Route::get('/departments/all', [DepartmentController::class, 'all']);
+    Route::get('/departments/{department}/items', [DepartmentController::class, 'items']);
+    Route::get('/departments/{department}/orders', [DepartmentController::class, 'orders']);
+    Route::post('/departments/{department}/request', [DepartmentController::class, 'requestFromWarehouse']);
+    Route::apiResource('departments', DepartmentController::class)->except(['create', 'edit']);
+
+    Route::put('/inventory-counts/{inventoryCount}/start', [InventoryCountController::class, 'start']);
+    Route::put('/inventory-counts/{inventoryCount}/complete', [InventoryCountController::class, 'complete']);
+    Route::put('/inventory-counts/{inventoryCount}/cancel', [InventoryCountController::class, 'cancel']);
+    Route::put('/inventory-counts/{inventoryCount}/items/{item}', [InventoryCountController::class, 'updateItem']);
+    Route::get('/inventory-counts/all', [InventoryCountController::class, 'all']);
+    Route::apiResource('inventory-counts', InventoryCountController::class)->except(['create', 'edit']);
 
     Route::get('/warehouses/all', [WarehouseController::class, 'all']);
     Route::get('/warehouses/{warehouse}/items', [WarehouseController::class, 'items']);

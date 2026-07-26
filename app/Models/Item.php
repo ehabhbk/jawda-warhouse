@@ -9,11 +9,14 @@ class Item extends Model
     protected $fillable = [
         'code',
         'barcode',
+        'batch',
         'name',
         'category_id',
         'shelf_id',
         'warehouse_id',
         'unit',
+        'sub_unit',
+        'sub_unit_quantity',
         'quantity',
         'min_quantity',
         'purchase_price',
@@ -30,7 +33,8 @@ class Item extends Model
     {
         return [
             'is_active' => 'boolean',
-            'quantity' => 'integer',
+            'quantity' => 'decimal:2',
+            'sub_unit_quantity' => 'integer',
             'min_quantity' => 'integer',
             'purchase_price' => 'decimal:2',
             'sale_price' => 'decimal:2',

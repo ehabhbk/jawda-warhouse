@@ -21,6 +21,7 @@ class User extends Authenticatable
         'password',
         'role',
         'role_id',
+        'department_id',
         'phone',
         'avatar',
         'is_active',
@@ -78,6 +79,11 @@ class User extends Authenticatable
     public function warehouses()
     {
         return $this->belongsToMany(Warehouse::class, 'user_warehouses');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function roleRelation()
