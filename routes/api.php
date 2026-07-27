@@ -101,6 +101,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/pos-sales/{posSale}/cancel', [PosController::class, 'cancel']);
     Route::apiResource('pos-sales', PosController::class)->except(['create', 'edit', 'update']);
 
+    Route::get('/orders/{order}/receipt', [ReportController::class, 'orderReceipt']);
+
     Route::prefix('reports')->group(function () {
         Route::get('/summary', [ReportController::class, 'summary']);
         Route::get('/inventory-by-warehouse', [ReportController::class, 'inventoryByWarehouse']);
@@ -109,5 +111,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/orders-by-status', [ReportController::class, 'ordersByStatus']);
         Route::get('/movements-by-period', [ReportController::class, 'movementsByPeriod']);
         Route::get('/pdf', [ReportController::class, 'pdf']);
+        Route::get('/warehouse/{warehouse}', [ReportController::class, 'warehouseReport']);
+        Route::get('/department/{department}', [ReportController::class, 'departmentReport']);
+        Route::get('/purchases', [ReportController::class, 'purchasesReport']);
+        Route::get('/stock-movements', [ReportController::class, 'stockMovementsReport']);
     });
 });
